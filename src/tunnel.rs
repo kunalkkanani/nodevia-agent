@@ -5,6 +5,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
+use tracing::info;
 
 const BUF_SIZE: usize = 4096;
 
@@ -18,7 +19,7 @@ pub async fn run(mut conn: WsConnection, host: &str, port: u16) -> Result<()> {
         .await
         .with_context(|| format!("TCP connect to {host}:{port} failed"))?;
 
-    println!("[tunnel] open → {host}:{port}");
+    info!("tunnel open → {host}:{port}");
     pump(&mut conn, &mut tcp).await
 }
 
@@ -32,7 +33,7 @@ async fn pump(conn: &mut WsConnection, tcp: &mut TcpStream) -> Result<()> {
             result = tcp.read(&mut buf) => {
                 let n = result.context("TCP read failed")?;
                 if n == 0 {
-                    println!("[tunnel] TCP closed — notifying relay");
+                    info!("TCP closed — notifying relay");
                     send_close(conn).await?;
                     return Ok(());
                 }
@@ -42,14 +43,12 @@ async fn pump(conn: &mut WsConnection, tcp: &mut TcpStream) -> Result<()> {
             // WebSocket message arrived from relay
             msg = conn.next() => {
                 match msg {
-                    // Raw binary frame = TCP data destined for the local service
                     Some(Ok(Message::Binary(data))) => {
                         tcp.write_all(&data).await.context("TCP write failed")?;
                     }
-                    // Text frame = control message; only care about tunnel_close
                     Some(Ok(Message::Text(text))) => {
                         if let Ok(AgentMessage::TunnelClose) = serde_json::from_str(&text) {
-                            println!("[tunnel] relay closed tunnel");
+                            info!("relay closed tunnel");
                             return Ok(());
                         }
                     }

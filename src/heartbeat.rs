@@ -7,6 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio::time::interval;
 use tokio_tungstenite::tungstenite::Message;
+use tracing::{debug, info, warn};
 
 const PING_INTERVAL_SECS: u64 = 30;
 
@@ -22,7 +23,7 @@ pub async fn run(mut conn: WsConnection, config: &AgentConfig) -> Result<()> {
         tokio::select! {
             _ = timer.tick() => {
                 conn.send(Message::Ping(vec![])).await?;
-                println!("[heartbeat] ping sent");
+                debug!("ping sent");
             }
 
             msg = conn.next() => {
@@ -30,21 +31,19 @@ pub async fn run(mut conn: WsConnection, config: &AgentConfig) -> Result<()> {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<AgentMessage>(&text) {
                             Ok(AgentMessage::Ack { device_id }) => {
-                                println!("[agent] ack — relay confirmed '{device_id}'");
+                                info!("ack — relay confirmed '{device_id}'");
                             }
                             Ok(AgentMessage::TunnelOpen { host, port }) => {
-                                println!("[agent] tunnel requested → {host}:{port}");
-                                // Move conn into the tunnel; returns when tunnel closes.
-                                // The outer loop in main.rs will then reconnect.
+                                info!("tunnel requested → {host}:{port}");
                                 return tunnel::run(conn, &host, port).await;
                             }
-                            Ok(other) => println!("[agent] received: {other:?}"),
-                            Err(e) => eprintln!("[agent] unrecognised message: {e}"),
+                            Ok(other) => debug!("received: {other:?}"),
+                            Err(e) => warn!("unrecognised message: {e}"),
                         }
                     }
-                    Some(Ok(Message::Pong(_))) => println!("[heartbeat] pong received"),
+                    Some(Ok(Message::Pong(_))) => debug!("pong received"),
                     Some(Ok(Message::Close(_))) => {
-                        println!("[heartbeat] server closed connection");
+                        info!("server closed connection");
                         return Ok(());
                     }
                     Some(Ok(_)) => {}
@@ -64,6 +63,6 @@ async fn register(conn: &mut WsConnection, config: &AgentConfig) -> Result<()> {
     };
     let json = serde_json::to_string(&msg)?;
     conn.send(Message::Text(json)).await?;
-    println!("[agent] registered as '{}'", config.device_id);
+    info!("registered as '{}'", config.device_id);
     Ok(())
 }

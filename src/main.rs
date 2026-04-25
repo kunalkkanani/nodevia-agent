@@ -1,22 +1,58 @@
-use nodevia_agent::{config::AgentConfig, heartbeat, transport};
-use transport::BackoffConfig;
+use anyhow::Result;
+use clap::Parser;
+use nodevia_agent::{
+    cli::{Cli, Command},
+    cmd,
+    config::AgentConfig,
+};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
-async fn main() {
-    let config = AgentConfig::from_env();
-    let backoff = BackoffConfig::default();
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
 
-    println!("[agent] device_id = '{}'", config.device_id);
-    println!("[agent] relay     = '{}'", config.relay_url);
+    // All three subcommands carry RunArgs — extract a clone for config loading.
+    let args = match &cli.command {
+        Command::Run(a) | Command::Config(a) | Command::Status(a) => a.clone(),
+    };
 
-    loop {
-        println!("[agent] connecting...");
-        let conn = transport::connect_with_retry(&config.relay_url, &backoff).await;
+    let config = AgentConfig::from_args(&args)?;
 
-        if let Err(e) = heartbeat::run(conn, &config).await {
-            eprintln!("[agent] connection lost: {e}");
+    match cli.command {
+        Command::Run(_) => {
+            init_logging(&config.log_level);
+            info!(version = env!("CARGO_PKG_VERSION"), "nodevia-agent");
+
+            // Run until Ctrl+C
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    info!("received Ctrl+C — shutting down");
+                }
+                result = cmd::run(&config) => {
+                    result?;
+                }
+            }
         }
 
-        println!("[agent] reconnecting...");
+        Command::Config(_) => {
+            cmd::show_config(&config);
+        }
+
+        Command::Status(_) => {
+            cmd::status(&config).await?;
+        }
     }
+
+    Ok(())
+}
+
+/// Initialise tracing. Respects RUST_LOG env var; falls back to --log-level.
+fn init_logging(level: &str) {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level));
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .init();
 }

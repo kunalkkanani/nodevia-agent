@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+use tracing::warn;
 use url::Url;
 
 /// Short name for the WebSocket stream type we return.
@@ -46,9 +47,8 @@ pub async fn connect_with_retry(url: &str, config: &BackoffConfig) -> WsConnecti
         match connect(url).await {
             Ok(conn) => return conn,
             Err(e) => {
-                eprintln!("[transport] failed: {e} — retrying in {delay_ms}ms");
+                warn!("connection failed: {e} — retrying in {delay_ms}ms");
                 tokio::time::sleep(Duration::from_millis(delay_ms)).await;
-                // Double the delay, but never exceed the cap
                 delay_ms = (delay_ms * 2).min(config.max_ms);
             }
         }
@@ -67,9 +67,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_connect_with_retry_loops_on_failure() {
-        // Port 19999 is almost certainly not running anything.
-        // We wrap in a short timeout — if it times out, it means the retry
-        // loop was running, which is exactly what we want to verify.
         let config = BackoffConfig {
             initial_ms: 50,
             max_ms: 100,
