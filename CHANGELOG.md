@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-25
+
+### Fixed
+- `src/config.rs` — hostname now reads `/etc/hostname` when `$HOSTNAME` env var is not exported (bash internal variable, never passed to child processes)
+
 ## [1.0.0] - 2026-04-25
 
 ### Added
