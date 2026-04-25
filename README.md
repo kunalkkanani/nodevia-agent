@@ -4,144 +4,261 @@
 [![Release](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/release.yml/badge.svg)](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/release.yml)
 
 A lightweight device agent written in Rust.  
-Connects to a relay server over WebSocket, maintains the connection, reconnects automatically, and tunnels TCP traffic to local ports.
+Connects to a relay server over WebSocket, keeps itself alive, and tunnels TCP traffic (e.g. SSH) back to whoever connects through the relay.
 
-> Designed to run on Raspberry Pi, Orange Pi, BeagleBone, and any Linux-based system.
-
----
-
-## Prerequisites
-
-| Tool | Version | Install |
-|------|---------|---------|
-| Rust | stable  | https://rustup.rs |
-| Node.js | 18+  | https://nodejs.org (for the dev relay) |
+> Runs on Raspberry Pi, Orange Pi, BeagleBone, and any Linux-based system.  
+> RAM < 10 MB · CPU idle ≈ 0% · Binary < 10 MB
 
 ---
 
-## Project structure
+## Install
+
+### Pre-built binary (recommended)
+
+Download the binary for your device from the [latest release](https://github.com/kunalkkanani/nodevia-agent/releases/latest):
+
+| Device | Architecture | Binary |
+|--------|-------------|--------|
+| Raspberry Pi 4 / Orange Pi | arm64 | `nodevia-agent-arm64` |
+| Raspberry Pi 3 / older Pi | armv7 | `nodevia-agent-armv7` |
+| x86 server / dev machine | amd64 | `nodevia-agent-amd64` |
+
+```bash
+# Example — Raspberry Pi 4
+curl -L https://github.com/kunalkkanani/nodevia-agent/releases/latest/download/nodevia-agent-arm64 \
+  -o nodevia-agent
+chmod +x nodevia-agent
+./nodevia-agent --version
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/kunalkkanani/nodevia-agent
+cd nodevia-agent
+cargo build --release
+./target/release/nodevia-agent --version
+```
+
+Requires [Rust stable](https://rustup.rs).
+
+---
+
+## Quick start (local dev)
+
+You need two terminals and the [dev relay](https://github.com/kunalkkanani/nodevia-relay-dev).
+
+**Terminal 1 — start the relay:**
+```bash
+git clone https://github.com/kunalkkanani/nodevia-relay-dev
+cd nodevia-relay-dev
+npm install && npm start
+```
+
+**Terminal 2 — start the agent:**
+```bash
+./nodevia-agent run
+```
+
+Expected output:
+```
+INFO nodevia-agent version=1.0.0
+INFO connecting...
+INFO registered as 'your-hostname'
+INFO ack — relay confirmed 'your-hostname'
+```
+
+---
+
+## CLI
 
 ```
-nodevia-agent/
-├── src/
-│   ├── lib.rs          # module declarations
-│   ├── main.rs         # entry point (no logic)
-│   ├── config.rs       # AgentConfig from environment variables
-│   ├── message.rs      # JSON message types (Register, Ack, TunnelOpen, TunnelClose)
-│   ├── transport.rs    # WebSocket connect + exponential backoff retry
-│   ├── heartbeat.rs    # ping/pong keepalive + tunnel handoff
-│   └── tunnel.rs       # bidirectional TCP↔WebSocket forwarder
-├── Cargo.toml
-└── CHANGELOG.md
+nodevia-agent <COMMAND>
+
+Commands:
+  run     Start the agent and connect to the relay
+  config  Print the resolved configuration (no side effects)
+  status  Check whether the relay is reachable
+```
+
+### `run`
+
+```bash
+nodevia-agent run [OPTIONS]
+
+Options (Connection):
+  --relay-url <URL>   Relay address  [env: RELAY_URL]  [default: ws://localhost:8080]
+  --device-id <ID>    Device name    [env: DEVICE_ID]  [default: hostname]
+
+Options (Logging):
+  --log-level <LEVEL>  error | warn | info | debug  [default: info]
+
+Options (Config):
+  --config <PATH>     Path to TOML config file  [default: ~/.config/nodevia/agent.toml]
+```
+
+### `config` — preview what would be used
+
+```bash
+nodevia-agent config
+nodevia-agent config --relay-url ws://192.168.1.10:8080
+
+  relay_url   ws://192.168.1.10:8080
+  device_id   my-hostname
+  hostname    my-hostname
+  log_level   info
+  config      /home/user/.config/nodevia/agent.toml (not found — using defaults)
+```
+
+### `status` — check relay reachability
+
+```bash
+nodevia-agent status --relay-url ws://192.168.1.10:8080
+Checking relay ws://192.168.1.10:8080 ... [OK] reachable
 ```
 
 ---
 
 ## Configuration
 
-All config is via environment variables. Defaults work out of the box for local dev.
+Priority order: **CLI flag → environment variable → config file → default**
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RELAY_URL` | `ws://localhost:8080` | WebSocket relay address |
-| `DEVICE_ID` | hostname | Unique name for this device |
-| `HOSTNAME` | `unknown` | Device hostname (set by shell) |
+### Config file
 
-**Example (Raspberry Pi):**
+Create `~/.config/nodevia/agent.toml` (or pass `--config <path>`):
+
+```toml
+relay_url = "ws://192.168.1.10:8080"
+device_id = "pi-living-room"
+```
+
+### Environment variables
+
 ```bash
-DEVICE_ID=pi-living-room RELAY_URL=ws://192.168.1.10:8080 ./nodevia-agent
+RELAY_URL=ws://192.168.1.10:8080 DEVICE_ID=pi-kitchen ./nodevia-agent run
+```
+
+### Log level
+
+```bash
+./nodevia-agent run --log-level debug   # shows ping/pong heartbeats
+RUST_LOG=debug ./nodevia-agent run      # same, via env var
 ```
 
 ---
 
-## How to run (local dev)
+## Testing on a real device
 
-**Terminal 1 — relay:**
+### What you need
+
+| Machine | Role |
+|---------|------|
+| Your laptop | Runs the relay (`nodevia-relay-dev`) |
+| Raspberry Pi | Runs the agent |
+| Both on the same network | Or relay exposed publicly |
+
+### Step 1 — start the relay on your laptop
+
 ```bash
-cd ../nodevia-relay-dev
-npm install
-npm start
+cd nodevia-relay-dev
+
+# Forward to SSH on the Pi (port 22)
+TUNNEL_TARGET_PORT=22 npm start
 ```
 
-**Terminal 2 — agent:**
+Note your laptop's local IP — you'll need it next.
+
 ```bash
-cargo run
+# macOS / Linux
+ip route get 1 | awk '{print $7}'
 ```
 
-Expected output:
-```
-[agent] device_id = 'your-hostname'
-[agent] relay     = 'ws://localhost:8080'
-[agent] connecting...
-[agent] registered as 'your-hostname'
-[agent] ack — relay confirmed 'your-hostname'
-```
+### Step 2 — run the agent on the Pi
 
----
-
-## How to test the tunnel
-
-**Terminal 1 — relay (forward to port 9000):**
+**Option A — pre-built binary:**
 ```bash
-TUNNEL_TARGET_PORT=9000 npm start
+curl -L https://github.com/kunalkkanani/nodevia-agent/releases/latest/download/nodevia-agent-arm64 \
+  -o nodevia-agent && chmod +x nodevia-agent
+
+./nodevia-agent run \
+  --relay-url ws://192.168.1.X:8080 \
+  --device-id my-pi
 ```
 
-**Terminal 2 — fake local service:**
+**Option B — build on the Pi (needs Rust installed):**
 ```bash
-nc -l -p 9000
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+git clone https://github.com/kunalkkanani/nodevia-agent
+cd nodevia-agent
+cargo build --release
+./target/release/nodevia-agent run --relay-url ws://192.168.1.X:8080
 ```
 
-**Terminal 3 — agent:**
-```bash
-cargo run
-```
+### Step 3 — SSH through the tunnel (from your laptop)
 
-**Terminal 4 — connect through the tunnel:**
-```bash
-nc localhost 2222
-```
-
-Type in Terminal 4 → appears in Terminal 2, and vice versa.
-
-**For real SSH on a device:**
 ```bash
 ssh -p 2222 pi@localhost
 ```
 
----
+Traffic flows: `laptop:2222 → relay → WebSocket → agent → Pi:22`
 
-## How to test reconnect
+### Step 4 — test reconnect
 
-1. Start relay and agent.
-2. Kill the relay (`Ctrl+C` in Terminal 1).
-3. Watch the agent retry with backoff:
-   ```
-   [transport] failed: ... — retrying in 1000ms
-   [transport] failed: ... — retrying in 2000ms
-   [transport] failed: ... — retrying in 4000ms
-   ```
-4. Restart the relay — agent reconnects automatically.
+Kill the relay (`Ctrl+C`) and watch the agent retry:
+```
+WARN connection failed: ... — retrying in 1000ms
+WARN connection failed: ... — retrying in 2000ms
+WARN connection failed: ... — retrying in 4000ms
+```
 
+Restart the relay — agent reconnects automatically.  
 Backoff: `1s → 2s → 4s → 8s → 16s → 32s → 60s (cap)`
 
 ---
 
-## Tests
+## Dev relay
+
+The [nodevia-relay-dev](https://github.com/kunalkkanani/nodevia-relay-dev) is a minimal Node.js WebSocket server for local testing.
+
+```bash
+npm start                          # relay on :8080, tunnel port :2222 → device:22
+TUNNEL_TARGET_PORT=9000 npm start  # tunnel to port 9000 instead
+```
+
+---
+
+## Running tests
 
 ```bash
 cargo test
 ```
 
+All tests are **offline** — no relay or network required.
+
 | Test | What it checks |
 |------|---------------|
-| `test_invalid_url_returns_error` | Malformed URL fails fast, no network call |
-| `test_connect_with_retry_loops_on_failure` | Retry loop runs when server is unreachable |
-| `test_register_serializes_to_json` | Register message encodes correctly |
-| `test_ack_deserializes_from_json` | Ack message decodes correctly |
-| `test_tunnel_open_deserializes_from_json` | TunnelOpen message decodes correctly |
-| `test_tunnel_close_roundtrip` | TunnelClose encodes and decodes |
+| `test_invalid_url_returns_error` | Malformed URL rejected before network call |
+| `test_connect_with_retry_loops_on_failure` | Retry loop runs on unreachable server |
+| `test_register_serializes_to_json` | Register message encodes to correct JSON |
+| `test_ack_deserializes_from_json` | Ack message decodes from JSON |
+| `test_tunnel_open_deserializes_from_json` | TunnelOpen message decodes from JSON |
+| `test_tunnel_close_roundtrip` | TunnelClose encodes and decodes correctly |
 
-All tests are offline — no relay or network required.
+---
+
+## Project structure
+
+```
+src/
+├── main.rs        — CLI entry point (no business logic)
+├── cli.rs         — clap command and argument definitions
+├── cmd.rs         — command handlers: run, config, status
+├── config.rs      — config loading: CLI > env > TOML file > defaults
+├── message.rs     — JSON message types (Register, Ack, TunnelOpen, TunnelClose)
+├── transport.rs   — WebSocket connect + exponential backoff retry
+├── heartbeat.rs   — ping/pong keepalive + tunnel handoff
+└── tunnel.rs      — bidirectional TCP↔WebSocket forwarder
+```
 
 ---
 
@@ -155,38 +272,34 @@ cargo clippy
 cargo test
 ```
 
+CI runs these automatically on every pull request.
+
 ---
 
 ## Releasing
 
-This project follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
-
-Steps to cut a release:
-
 ```bash
-# 1. Update version in Cargo.toml
-# 2. Update CHANGELOG.md — move [Unreleased] items to a new [x.y.z] section
-# 3. Commit
-git add Cargo.toml CHANGELOG.md
+# 1. Bump Cargo.toml + CHANGELOG.md
 git commit -m "chore: bump version to x.y.z"
 
-# 4. Create an annotated tag
-git tag -a vx.y.z -m "vx.y.z — short description"
-
-# 5. Push (when remote is set up)
+# 2. Tag — triggers 3-arch release build (v1.0.0 and above only)
+git tag -a vx.y.z -m "vx.y.z — description"
 git push origin main --tags
 ```
+
+Release workflow builds: `amd64` · `arm64` · `armv7`
 
 ---
 
 ## Release history
 
-| Version | Tag | Description |
-|---------|-----|-------------|
-| 0.4.0 | [v0.4.0] | Phase 4 — TCP tunnel over WebSocket |
-| 0.3.0 | [v0.3.0] | Phase 3 — device registration protocol |
-| 0.2.0 | [v0.2.0] | Phase 2 — reconnect + heartbeat |
-| 0.1.0 | [v0.1.0] | Phase 1 — basic WebSocket transport |
+| Version | Description |
+|---------|-------------|
+| [1.0.0](https://github.com/kunalkkanani/nodevia-agent/releases/tag/v1.0.0) | First stable release — full CLI, tunnel, reconnect |
+| 0.4.0 | Phase 4 — TCP tunnel over WebSocket |
+| 0.3.0 | Phase 3 — device registration protocol |
+| 0.2.0 | Phase 2 — reconnect with exponential backoff |
+| 0.1.0 | Phase 1 — basic WebSocket transport |
 
 ---
 
@@ -194,8 +307,8 @@ git push origin main --tags
 
 | Phase | Version | Status | Description |
 |-------|---------|--------|-------------|
-| 1 | v0.1.0 | ✅ Done | Basic WebSocket transport |
-| 2 | v0.2.0 | ✅ Done | Reconnect with exponential backoff + heartbeat |
-| 3 | v0.3.0 | ✅ Done | Device registration + messaging protocol |
-| 4 | v0.4.0 | ✅ Done | Bidirectional TCP tunnel over WebSocket |
-| 5 | v0.5.0 | 🔜 Next | CLI |
+| 1 | v0.1.0 | ✅ | Basic WebSocket transport |
+| 2 | v0.2.0 | ✅ | Reconnect with exponential backoff + heartbeat |
+| 3 | v0.3.0 | ✅ | Device registration + messaging protocol |
+| 4 | v0.4.0 | ✅ | Bidirectional TCP tunnel over WebSocket |
+| 5 | v1.0.0 | ✅ | CLI — run, config, status subcommands |

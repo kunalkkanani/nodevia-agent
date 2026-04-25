@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-04-25
+## [1.0.0] - 2026-04-25
 
 ### Added
 - `src/cli.rs` — clap CLI with three subcommands: `run`, `config`, `status`; shared `RunArgs` with grouped help sections, env var bindings, and `LogLevel` enum
