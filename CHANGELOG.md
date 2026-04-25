@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-25
+
+### Added
+- `src/cli.rs` — clap CLI with three subcommands: `run`, `config`, `status`; shared `RunArgs` with grouped help sections, env var bindings, and `LogLevel` enum
+- `src/cmd.rs` — command handlers: `run()` agent loop, `show_config()` prints resolved config with file status, `status()` checks relay reachability
+- `src/config.rs` — `AgentConfig::from_args()` merges CLI > env > TOML file > defaults; default config path `~/.config/nodevia/agent.toml`
+- TOML config file support — `relay_url` and `device_id` settable in file
+- Graceful shutdown on `Ctrl+C` via `tokio::signal::ctrl_c()`
+- `Cargo.toml` — added `clap` (derive+env), `toml`, `tracing`, `tracing-subscriber` (env-filter)
+
+### Changed
+- `src/main.rs` — replaced hand-rolled loop with clap dispatch; tracing initialised from `--log-level` flag or `RUST_LOG` env var
+- All modules — replaced `println!`/`eprintln!` with `tracing` macros; ping/pong heartbeats demoted to `debug!` level
+
 ## [0.4.0] - 2026-04-25
 
 ### Added
