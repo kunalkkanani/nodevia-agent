@@ -1,7 +1,7 @@
 # nodevia-agent
 
 [![CI](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/ci.yml)
-[![Release](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/release.yml/badge.svg)](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/kunalkkanani/nodevia-agent?label=release)](https://github.com/kunalkkanani/nodevia-agent/releases/latest)
 
 A lightweight device agent written in Rust.  
 Connects to a relay server over WebSocket, keeps itself alive, and tunnels TCP traffic (e.g. SSH) back to whoever connects through the relay.
