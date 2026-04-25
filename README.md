@@ -1,5 +1,8 @@
 # nodevia-agent
 
+[![CI](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/ci.yml)
+[![Release](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/release.yml/badge.svg)](https://github.com/kunalkkanani/nodevia-agent/actions/workflows/release.yml)
+
 A lightweight device agent written in Rust.  
 Connects to a relay server over WebSocket, maintains the connection, reconnects automatically, and tunnels TCP traffic to local ports.
 
