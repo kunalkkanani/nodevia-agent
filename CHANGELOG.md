@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-25
+
+### Added
+- `src/message.rs` — `AgentMessage` enum: `Register` and `Ack` variants, serialized as tagged JSON via serde
+- `src/config.rs` — `AgentConfig` reading `RELAY_URL`, `DEVICE_ID`, `HOSTNAME` from environment; safe defaults for local dev
+- `src/heartbeat.rs` — sends `Register` on connect, handles `Ack` response, routes all incoming text through JSON parser
+- `Cargo.toml` — added `serde` (derive feature) and `serde_json`
+- Unit tests: `Register` serialization and `Ack` deserialization (offline, no relay required)
+
+### Changed
+- `src/main.rs` — prints device ID and relay URL on startup; passes `AgentConfig` to heartbeat
+- `src/heartbeat.rs` — `run()` now accepts `&AgentConfig`; sends registration before entering ping loop
+
 ## [0.2.0] - 2026-04-25
 
 ### Added

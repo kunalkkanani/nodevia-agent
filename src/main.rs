@@ -1,17 +1,19 @@
-use nodevia_agent::{heartbeat, transport};
+use nodevia_agent::{config::AgentConfig, heartbeat, transport};
 use transport::BackoffConfig;
 
 #[tokio::main]
 async fn main() {
-    let url = "ws://localhost:8080";
+    let config = AgentConfig::from_env();
     let backoff = BackoffConfig::default();
 
-    loop {
-        println!("[agent] connecting to {url}...");
-        let conn = transport::connect_with_retry(url, &backoff).await;
-        println!("[agent] connected");
+    println!("[agent] device_id = '{}'", config.device_id);
+    println!("[agent] relay     = '{}'", config.relay_url);
 
-        if let Err(e) = heartbeat::run(conn).await {
+    loop {
+        println!("[agent] connecting...");
+        let conn = transport::connect_with_retry(&config.relay_url, &backoff).await;
+
+        if let Err(e) = heartbeat::run(conn, &config).await {
             eprintln!("[agent] connection lost: {e}");
         }
 
