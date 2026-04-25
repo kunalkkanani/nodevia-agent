@@ -25,7 +25,16 @@ impl AgentConfig {
     /// Build config from CLI args.
     /// Priority: CLI flag / env var  >  config file  >  built-in default.
     pub fn from_args(args: &RunArgs) -> Result<Self> {
-        let hostname = std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string());
+        let hostname = std::env::var("HOSTNAME")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                std::fs::read_to_string("/etc/hostname")
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
         let config_path = args.config.clone().unwrap_or_else(default_config_path);
         let file = load_file(&config_path)?;
 
