@@ -1,9 +1,8 @@
 # nodevia-agent
 
 A lightweight device agent written in Rust.  
-Connects to a relay server over WebSocket, maintains the connection, and automatically reconnects with exponential backoff.
+Connects to a relay server over WebSocket, maintains the connection, reconnects automatically, and tunnels TCP traffic to local ports.
 
-> Part of the [Nodevia](https://github.com/nodevia) open-source device connectivity platform.  
 > Designed to run on Raspberry Pi, Orange Pi, BeagleBone, and any Linux-based system.
 
 ---
@@ -24,97 +23,128 @@ nodevia-agent/
 ├── src/
 │   ├── lib.rs          # module declarations
 │   ├── main.rs         # entry point (no logic)
-│   ├── transport.rs    # WebSocket connect + exponential backoff
-│   └── heartbeat.rs    # ping/pong keepalive loop
+│   ├── config.rs       # AgentConfig from environment variables
+│   ├── message.rs      # JSON message types (Register, Ack, TunnelOpen, TunnelClose)
+│   ├── transport.rs    # WebSocket connect + exponential backoff retry
+│   ├── heartbeat.rs    # ping/pong keepalive + tunnel handoff
+│   └── tunnel.rs       # bidirectional TCP↔WebSocket forwarder
 ├── Cargo.toml
 └── CHANGELOG.md
 ```
 
 ---
 
-## How to run (with local dev relay)
+## Configuration
 
-You need two terminals.
+All config is via environment variables. Defaults work out of the box for local dev.
 
-### Terminal 1 — start the relay
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RELAY_URL` | `ws://localhost:8080` | WebSocket relay address |
+| `DEVICE_ID` | hostname | Unique name for this device |
+| `HOSTNAME` | `unknown` | Device hostname (set by shell) |
 
+**Example (Raspberry Pi):**
+```bash
+DEVICE_ID=pi-living-room RELAY_URL=ws://192.168.1.10:8080 ./nodevia-agent
+```
+
+---
+
+## How to run (local dev)
+
+**Terminal 1 — relay:**
 ```bash
 cd ../nodevia-relay-dev
 npm install
 npm start
 ```
 
-Expected output:
-```
-[relay] listening on ws://localhost:8080
-```
-
-### Terminal 2 — run the agent
-
+**Terminal 2 — agent:**
 ```bash
 cargo run
 ```
 
 Expected output:
 ```
-[agent] connecting to ws://localhost:8080...
-[agent] connected
-```
-
-After 30 seconds, the heartbeat kicks in:
-```
-[heartbeat] ping sent
-[heartbeat] pong received
+[agent] device_id = 'your-hostname'
+[agent] relay     = 'ws://localhost:8080'
+[agent] connecting...
+[agent] registered as 'your-hostname'
+[agent] ack — relay confirmed 'your-hostname'
 ```
 
 ---
 
-## How to test reconnect behaviour
+## How to test the tunnel
 
-This is the main thing Phase 2 adds. To see it in action:
-
-**Step 1** — start the relay and agent as above.
-
-**Step 2** — kill the relay (press `Ctrl+C` in Terminal 1).
-
-**Step 3** — watch the agent retry with backoff in Terminal 2:
-```
-[transport] failed: ... — retrying in 1000ms
-[transport] failed: ... — retrying in 2000ms
-[transport] failed: ... — retrying in 4000ms
+**Terminal 1 — relay (forward to port 9000):**
+```bash
+TUNNEL_TARGET_PORT=9000 npm start
 ```
 
-**Step 4** — restart the relay (`npm start` again).  
-The agent reconnects automatically:
-```
-[agent] connected
+**Terminal 2 — fake local service:**
+```bash
+nc -l -p 9000
 ```
 
-Backoff doubles each attempt and caps at **60 seconds** — so the sequence is:
-`1s → 2s → 4s → 8s → 16s → 32s → 60s → 60s → ...`
+**Terminal 3 — agent:**
+```bash
+cargo run
+```
+
+**Terminal 4 — connect through the tunnel:**
+```bash
+nc localhost 2222
+```
+
+Type in Terminal 4 → appears in Terminal 2, and vice versa.
+
+**For real SSH on a device:**
+```bash
+ssh -p 2222 pi@localhost
+```
 
 ---
 
-## How to run tests
+## How to test reconnect
+
+1. Start relay and agent.
+2. Kill the relay (`Ctrl+C` in Terminal 1).
+3. Watch the agent retry with backoff:
+   ```
+   [transport] failed: ... — retrying in 1000ms
+   [transport] failed: ... — retrying in 2000ms
+   [transport] failed: ... — retrying in 4000ms
+   ```
+4. Restart the relay — agent reconnects automatically.
+
+Backoff: `1s → 2s → 4s → 8s → 16s → 32s → 60s (cap)`
+
+---
+
+## Tests
 
 ```bash
 cargo test
 ```
 
-Tests included:
-
 | Test | What it checks |
 |------|---------------|
-| `test_invalid_url_returns_error` | Malformed URL fails immediately, no network call |
+| `test_invalid_url_returns_error` | Malformed URL fails fast, no network call |
 | `test_connect_with_retry_loops_on_failure` | Retry loop runs when server is unreachable |
+| `test_register_serializes_to_json` | Register message encodes correctly |
+| `test_ack_deserializes_from_json` | Ack message decodes correctly |
+| `test_tunnel_open_deserializes_from_json` | TunnelOpen message decodes correctly |
+| `test_tunnel_close_roundtrip` | TunnelClose encodes and decodes |
 
-Both tests are offline — no relay or network required.
+All tests are offline — no relay or network required.
 
 ---
 
 ## Code quality
 
-Run these before every commit (per `AGENT_RULES.md`):
+Run before every commit:
 
 ```bash
 cargo fmt
@@ -124,13 +154,45 @@ cargo test
 
 ---
 
-## Current phase
+## Releasing
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 1 | ✅ Done | Basic WebSocket transport |
-| 2 | ✅ Done | Reconnect with exponential backoff + heartbeat |
-| 3 | 🔜 Next | Messaging protocol + device registration |
-| 4 | — | Tunneling |
-| 5 | — | CLI |
-| 6 | — | SaaS backend |
+This project follows [SemVer](https://semver.org): `MAJOR.MINOR.PATCH`.
+
+Steps to cut a release:
+
+```bash
+# 1. Update version in Cargo.toml
+# 2. Update CHANGELOG.md — move [Unreleased] items to a new [x.y.z] section
+# 3. Commit
+git add Cargo.toml CHANGELOG.md
+git commit -m "chore: bump version to x.y.z"
+
+# 4. Create an annotated tag
+git tag -a vx.y.z -m "vx.y.z — short description"
+
+# 5. Push (when remote is set up)
+git push origin main --tags
+```
+
+---
+
+## Release history
+
+| Version | Tag | Description |
+|---------|-----|-------------|
+| 0.4.0 | [v0.4.0] | Phase 4 — TCP tunnel over WebSocket |
+| 0.3.0 | [v0.3.0] | Phase 3 — device registration protocol |
+| 0.2.0 | [v0.2.0] | Phase 2 — reconnect + heartbeat |
+| 0.1.0 | [v0.1.0] | Phase 1 — basic WebSocket transport |
+
+---
+
+## Phase tracker
+
+| Phase | Version | Status | Description |
+|-------|---------|--------|-------------|
+| 1 | v0.1.0 | ✅ Done | Basic WebSocket transport |
+| 2 | v0.2.0 | ✅ Done | Reconnect with exponential backoff + heartbeat |
+| 3 | v0.3.0 | ✅ Done | Device registration + messaging protocol |
+| 4 | v0.4.0 | ✅ Done | Bidirectional TCP tunnel over WebSocket |
+| 5 | v0.5.0 | 🔜 Next | CLI |
