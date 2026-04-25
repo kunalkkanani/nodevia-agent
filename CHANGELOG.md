@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-25
+
+### Added
+- `src/transport.rs` — `BackoffConfig` struct (initial delay, max cap) with `Default` impl (1 s → 60 s)
+- `src/transport.rs` — `connect_with_retry()`: retries forever with exponential backoff until connected
+- `src/heartbeat.rs` — `run()`: holds active connection, sends pings every 30 s, handles pong/close/error via `tokio::select!`
+- `src/main.rs` — outer reconnect loop: calls `connect_with_retry`, runs heartbeat, loops on disconnect
+- `Cargo.toml` — added `futures-util` dependency for `SinkExt` / `StreamExt`
+- Unit test: `test_connect_with_retry_loops_on_failure` (verifies retry loop via timeout — no network required)
+- `README.md` — full setup guide, run instructions, reconnect test walkthrough, phase tracker
+
 ## [0.1.0] - 2026-04-25
 
 ### Added
