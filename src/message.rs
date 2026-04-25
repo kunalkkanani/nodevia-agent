@@ -16,6 +16,13 @@ pub enum AgentMessage {
     Ack {
         device_id: String,
     },
+    /// Relay → agent: open a TCP connection to host:port and start forwarding
+    TunnelOpen {
+        host: String,
+        port: u16,
+    },
+    /// Either side → close the tunnel
+    TunnelClose,
 }
 
 #[cfg(test)]
@@ -32,6 +39,27 @@ mod tests {
         let json = serde_json::to_string(&msg).expect("serialize failed");
         assert!(json.contains(r#""type":"register""#));
         assert!(json.contains(r#""device_id":"pi-001""#));
+    }
+
+    #[test]
+    fn test_tunnel_open_deserializes_from_json() {
+        let json = r#"{"type":"tunnel_open","host":"localhost","port":22}"#;
+        let msg: AgentMessage = serde_json::from_str(json).expect("deserialize failed");
+        match msg {
+            AgentMessage::TunnelOpen { host, port } => {
+                assert_eq!(host, "localhost");
+                assert_eq!(port, 22);
+            }
+            _ => panic!("Expected TunnelOpen variant"),
+        }
+    }
+
+    #[test]
+    fn test_tunnel_close_roundtrip() {
+        let json = serde_json::to_string(&AgentMessage::TunnelClose).expect("serialize failed");
+        assert!(json.contains(r#""type":"tunnel_close""#));
+        let msg: AgentMessage = serde_json::from_str(&json).expect("deserialize failed");
+        assert!(matches!(msg, AgentMessage::TunnelClose));
     }
 
     #[test]

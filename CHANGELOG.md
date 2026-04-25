@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-25
+
+### Added
+- `src/tunnel.rs` — bidirectional TCP↔WebSocket forwarder: TCP bytes sent as binary WS frames, binary WS frames written to TCP; handles `TunnelClose` control message and clean EOF on both sides
+- `src/message.rs` — `TunnelOpen { host, port }` and `TunnelClose` variants
+- Unit tests: `TunnelOpen` deserialization and `TunnelClose` round-trip
+
+### Changed
+- `src/heartbeat.rs` — handles `TunnelOpen`: moves `conn` into `tunnel::run`, returns its result; outer loop in `main.rs` reconnects automatically after tunnel closes
+
 ## [0.3.0] - 2026-04-25
 
 ### Added
