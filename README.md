@@ -11,6 +11,38 @@ Connects to a relay server over WebSocket, keeps itself alive, and tunnels TCP t
 
 ---
 
+## Who is this for?
+
+### Freelancers managing client devices
+
+You set up a Raspberry Pi or Linux server for a client. Next time something breaks, you need access — but the client doesn't have a static IP, can't configure port forwarding, and their IT department won't open a VPN.
+
+Install the agent on the client's device once. It calls out to a relay. You connect through the relay. No firewall changes, no VPN, no back-and-forth with IT.
+
+```
+Client device ──[WebSocket]──► relay ◄──[SSH]── you
+```
+
+The client never needs to touch their router again.
+
+### Hobbyists with a home server or Pi
+
+You want to SSH into your home Pi from work, a café, or anywhere. Your ISP gives you a dynamic IP and your router doesn't support port forwarding properly.
+
+Run the agent on the Pi. Self-host the relay on any cheap VPS (or use the hosted version when available). SSH in from anywhere.
+
+```bash
+# On your Pi at home
+./nodevia-agent run --relay-url ws://your-vps:8080 --device-id home-pi
+
+# From anywhere
+ssh -p 2222 pi@your-vps
+```
+
+The relay is open source — [nodevia-relay-dev](https://github.com/kunalkkanani/nodevia-relay-dev).
+
+---
+
 ## Install
 
 ### Pre-built binary (recommended)
