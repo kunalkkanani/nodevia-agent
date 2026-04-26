@@ -54,9 +54,7 @@ impl AgentConfig {
                 .or(file.device_id)
                 .unwrap_or_else(|| hostname.clone()),
             token: args.token.clone().or(file.token),
-            heartbeat_interval: file
-                .heartbeat_interval
-                .unwrap_or(args.heartbeat_interval),
+            heartbeat_interval: file.heartbeat_interval.unwrap_or(args.heartbeat_interval),
             hostname,
             log_level: args.log_level.as_str().to_string(),
             config_path,
