@@ -32,13 +32,20 @@ pub fn show_config(config: &AgentConfig) {
         "not found — using defaults"
     };
 
+    let token_display = match &config.token {
+        Some(_) => "set (hidden)",
+        None => "not set — relay will reject if DEVICE_TOKEN is configured",
+    };
+
     println!();
-    println!("  relay_url   {}", config.relay_url);
-    println!("  device_id   {}", config.device_id);
-    println!("  hostname    {}", config.hostname);
-    println!("  log_level   {}", config.log_level);
+    println!("  relay_url           {}", config.relay_url);
+    println!("  device_id           {}", config.device_id);
+    println!("  hostname            {}", config.hostname);
+    println!("  token               {token_display}");
+    println!("  heartbeat_interval  {}s", config.heartbeat_interval);
+    println!("  log_level           {}", config.log_level);
     println!(
-        "  config      {} ({})",
+        "  config              {} ({})",
         config.config_path.display(),
         file_status
     );

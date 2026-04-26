@@ -9,14 +9,12 @@ use tokio::time::interval;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{debug, info, warn};
 
-const PING_INTERVAL_SECS: u64 = 30;
-
 /// Registers the device, keeps the connection alive with pings, and delegates
 /// to tunnel::run when the relay requests a tunnel.
 pub async fn run(mut conn: WsConnection, config: &AgentConfig) -> Result<()> {
     register(&mut conn, config).await?;
 
-    let mut timer = interval(Duration::from_secs(PING_INTERVAL_SECS));
+    let mut timer = interval(Duration::from_secs(config.heartbeat_interval));
     timer.tick().await; // skip the immediate first tick
 
     loop {
@@ -60,6 +58,7 @@ async fn register(conn: &mut WsConnection, config: &AgentConfig) -> Result<()> {
         device_id: config.device_id.clone(),
         hostname: config.hostname.clone(),
         platform: std::env::consts::OS.to_string(),
+        token: config.token.clone(),
     };
     let json = serde_json::to_string(&msg)?;
     conn.send(Message::Text(json)).await?;

@@ -59,6 +59,25 @@ pub struct RunArgs {
     )]
     pub log_level: LogLevel,
 
+    /// Secret token to authenticate with the relay (must match DEVICE_TOKEN on relay)
+    #[arg(
+        long,
+        env = "DEVICE_TOKEN",
+        help_heading = "Security",
+        value_name = "TOKEN"
+    )]
+    pub token: Option<String>,
+
+    /// Heartbeat ping interval in seconds
+    #[arg(
+        long,
+        env = "HEARTBEAT_INTERVAL",
+        default_value = "30",
+        help_heading = "Connection",
+        value_name = "SECS"
+    )]
+    pub heartbeat_interval: u64,
+
     /// Path to TOML config file
     #[arg(
         long,
@@ -68,8 +87,9 @@ pub struct RunArgs {
                      Default: ~/.config/nodevia/agent.toml\n\
                      Example file:\n\
                      \n\
-                     relay_url = \"ws://192.168.1.10:8080\"\n\
-                     device_id = \"pi-living-room\""
+                     relay_url = \"wss://relay.example.com\"\n\
+                     device_id = \"pi-living-room\"\n\
+                     token     = \"your-secret-token\""
     )]
     pub config: Option<PathBuf>,
 }

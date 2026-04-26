@@ -8,6 +8,8 @@ pub struct AgentConfig {
     pub relay_url: String,
     pub device_id: String,
     pub hostname: String,
+    pub token: Option<String>,
+    pub heartbeat_interval: u64,
     pub log_level: String,
     /// Resolved path to the config file (may not exist on disk).
     pub config_path: PathBuf,
@@ -19,6 +21,8 @@ pub struct AgentConfig {
 struct ConfigFile {
     relay_url: Option<String>,
     device_id: Option<String>,
+    token: Option<String>,
+    heartbeat_interval: Option<u64>,
 }
 
 impl AgentConfig {
@@ -49,6 +53,10 @@ impl AgentConfig {
                 .clone()
                 .or(file.device_id)
                 .unwrap_or_else(|| hostname.clone()),
+            token: args.token.clone().or(file.token),
+            heartbeat_interval: file
+                .heartbeat_interval
+                .unwrap_or(args.heartbeat_interval),
             hostname,
             log_level: args.log_level.as_str().to_string(),
             config_path,

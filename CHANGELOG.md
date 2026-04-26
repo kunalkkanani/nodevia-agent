@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-26
+
+### Added
+- `--token` / `DEVICE_TOKEN` env var — agent sends a secret token in the Register message; relay rejects connections without a matching token
+- `--heartbeat-interval` / `HEARTBEAT_INTERVAL` env var — configurable ping interval (default 30s)
+- `wss://` support — `tokio-tungstenite` now compiled with `rustls-tls-native-roots` feature; agents can connect to TLS-terminated relays
+
+### Changed
+- `src/message.rs` — `Register` variant gains optional `token` field (omitted from JSON when `None`)
+- `src/config.rs` — `AgentConfig` gains `token` and `heartbeat_interval` fields
+- `src/heartbeat.rs` — ping interval driven by `config.heartbeat_interval` instead of hardcoded constant
+- `src/cmd.rs` — `show_config` displays token status (masked) and heartbeat interval
+
 ## [1.1.0] - 2026-04-25
 
 ### Fixed

@@ -12,6 +12,8 @@ pub enum AgentMessage {
         device_id: String,
         hostname: String,
         platform: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        token: Option<String>,
     },
     Ack {
         device_id: String,
@@ -35,6 +37,7 @@ mod tests {
             device_id: "pi-001".to_string(),
             hostname: "raspberrypi".to_string(),
             platform: "linux".to_string(),
+            token: None,
         };
         let json = serde_json::to_string(&msg).expect("serialize failed");
         assert!(json.contains(r#""type":"register""#));
